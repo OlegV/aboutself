@@ -1,0 +1,1 @@
+# Before start application, please, execute script **schema.sql**
