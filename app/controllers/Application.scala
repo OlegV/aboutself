@@ -1,5 +1,7 @@
 package controllers
 
+import java.util.regex.Pattern
+
 import models._
 import play.api.db.slick._
 import play.api.Play.current
@@ -19,7 +21,17 @@ trait Application extends Controller {
       (__ \ 'password).read[String]
     ) tupled
 
+
   implicit val userReads = Json.reads[User]
+  val EMAIL_PATTERN =
+    "^[_A-Za-z0-9-\\+]+(\\.[_A-Za-z0-9-]+)*@[A-Za-z0-9-]+(\\.[A-Za-z0-9]+)*(\\.[A-Za-z]{2,})$"
+
+  val pattern =  Pattern.compile(EMAIL_PATTERN)
+
+  def validate(email: String): Boolean = {
+    val matcher = pattern.matcher(email)
+    matcher.matches()
+  }
 
   def index = DBAction {
     request =>
@@ -83,18 +95,22 @@ trait Application extends Controller {
       implicit val session = request.dbSession
 
       val json = request.body
-      json.validate[User].map {
+      val result = json.validate[User].map {
         case user =>
 
-          if (userModel.findUser(user.email).isEmpty) {
-            userModel.saveUser(user)
-            Ok(Json.obj("status" -> 0, "register" -> true))
-          } else Ok(Json.obj("status" -> 2, "error" -> "User exist"))
+          if(validate(user.email)) {
+            if (userModel.findUser(user.email).isEmpty) {
+              userModel.saveUser(user)
+              Json.obj("status" -> 0)
+            } else Json.obj("status" -> 2, "error" -> "User exist")
+          } else Json.obj("status" -> 3, "error" -> "Email not valid")
+
       }.recoverTotal {
         e =>
-          Ok(Json.obj("status" -> 1, "error" -> "Incorrect json"))
+          Json.obj("status" -> 1, "error" -> "Incorrect json")
       }
 
+      Ok(result)
   }
 
   def logout = Action {
